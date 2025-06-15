@@ -7,20 +7,20 @@ modalities = ('flair', 't1ce', 't1', 't2')
 
 # train
 train_set = {
-        'root': 'path to training set',
-        'flist': 'all.txt',
+        'root': 'data/BraTS2020_TrainingData/train/',
+        'flist': 'train.txt',
         'has_label': True
         }
 
 # test/validation data
 valid_set = {
-        'root': 'path to validation set',
+        'root': 'data/BraTS2020_TrainingData/val/images/',
         'flist': 'valid.txt',
         'has_label': False
         }
 
 test_set = {
-        'root': 'path to testing set',
+        'root': 'data/BraTS2020_TrainingData/test/images',
         'flist': 'test.txt',
         'has_label': False
         }
@@ -31,7 +31,7 @@ def nib_load(file_name):
         print('Invalid file name, can not find the file!')
 
     proxy = nib.load(file_name)
-    data = proxy.get_data()
+    data = np.asanyarray(proxy.dataobj)
     proxy.uncache()
     return data
 

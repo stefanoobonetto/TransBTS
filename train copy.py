@@ -21,6 +21,7 @@ from utils.tools import all_reduce_tensor
 from tensorboardX import SummaryWriter
 from torch import nn
 
+os.environ['USE_LIBUV'] = '0'
 
 local_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
@@ -106,6 +107,7 @@ parser.add_argument('--local_rank', default=0, type=int, help='node rank for dis
 
 args = parser.parse_args()
 
+device = 'cuda' if torch.cuda.is_available() and not args.no_cuda else 'cpu'
 
 def main_worker():
     if args.local_rank == 0:
@@ -122,18 +124,21 @@ def main_worker():
     torch.cuda.manual_seed(args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
-    torch.distributed.init_process_group('nccl')
+    # torch.distributed.init_process_group('nccl')
     torch.cuda.set_device(args.local_rank)
 
     _, model = TransBTS(dataset='brats', _conv_repr=True, _pe_type="learned")
 
     model.cuda(args.local_rank)
-    model = nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank,
-                                                find_unused_parameters=True)
+    # model = nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank,
+                                                # find_unused_parameters=True)
     model.train()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, amsgrad=args.amsgrad)
 
+    print('Using device:', device)
+
+    model = model.to(device)
 
     criterion = getattr(criterions, args.criterion)
 
@@ -157,11 +162,12 @@ def main_worker():
     else:
         logging.info('re-training!!!')
 
-    train_list = os.path.join(args.root, args.train_dir, args.train_file)
-    train_root = os.path.join(args.root, args.train_dir)
+    train_list = os.path.join('train.txt')
+    train_root = os.path.join('data\BraTS2020_TrainingData\\train\images')
 
     train_set = BraTS(train_list, train_root, args.mode)
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
+    # train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
+    train_sampler = None
     logging.info('Samples for train = {}'.format(len(train_set)))
 
 
@@ -175,7 +181,7 @@ def main_worker():
     torch.set_grad_enabled(True)
 
     for epoch in range(args.start_epoch, args.end_epoch):
-        train_sampler.set_epoch(epoch)  # shuffle
+        # train_sampler.set_epoch(epoch)  # shuffle
         setproctitle.setproctitle('{}: {}/{}'.format(args.user, epoch+1, args.end_epoch))
         start_epoch = time.time()
 
@@ -277,6 +283,12 @@ def log_args(log_file):
 
 if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    print('Cuda available: {}'.format(torch.cuda.is_available()))
+    print(torch.version.cuda)
+    print(torch.cuda.current_device())
+    print(torch.cuda.get_device_name(0))
+
+
     assert torch.cuda.is_available(), "Currently, we only support CUDA version"
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True

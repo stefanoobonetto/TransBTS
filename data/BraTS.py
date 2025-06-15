@@ -146,6 +146,7 @@ class BraTS(Dataset):
 
     def __getitem__(self, item):
         path = self.paths[item]
+
         if self.mode == 'train':
             image, label = pkload(path + 'data_f32b0.pkl')
             sample = {'image': image, 'label': label}
